@@ -1,12 +1,11 @@
 import os
 import base64
 import streamlit as st
-from dotenv import load_dotenv
 from groq import Groq
 from retrieval import retrieve
 
 
-# -------- Helper to load background --------
+# -------- Helper to load background image --------
 def get_base64(path):
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode()
@@ -19,20 +18,18 @@ st.set_page_config(
     layout="wide"
 )
 
-# -------- Title + Caption Block (centered) --------
+
+# -------- Title + Caption Block --------
 st.markdown(
     """
-    <div style="
-        text-align:center; 
-        margin-bottom: 40px;
-    ">
+    <div style="text-align:center; margin-bottom:40px;">
         <div style="
             display:inline-block;
-            background-color: rgba(0,0,0,0.6); 
-            color: white; 
-            padding: 20px 30px; 
-            border-radius: 12px; 
-            font-size:36px; 
+            background-color: rgba(0,0,0,0.6);
+            color:white;
+            padding:20px 30px;
+            border-radius:12px;
+            font-size:36px;
             font-weight:bold;
             margin-bottom:10px;
         ">
@@ -40,9 +37,9 @@ st.markdown(
         </div>
         <div style="
             display:inline-block;
-            background-color: rgba(0,0,0,0.6); 
-            color:white; 
-            padding:10px 15px; 
+            background-color: rgba(0,0,0,0.6);
+            color:white;
+            padding:10px 15px;
             border-radius:8px;
             font-size:18px;
         ">
@@ -55,7 +52,7 @@ st.markdown(
 
 
 # -------- Apply Background --------
-bg_path = "assets/bg.jpg"  # replace with your ATV image if needed
+bg_path = "assets/bg.jpg"
 
 if os.path.exists(bg_path):
     bg_img = get_base64(bg_path)
@@ -63,7 +60,6 @@ if os.path.exists(bg_path):
     st.markdown(
         f"""
         <style>
-        /* Background */
         .stApp {{
             background: linear-gradient(
                 rgba(0,0,0,0.4),
@@ -75,7 +71,6 @@ if os.path.exists(bg_path):
             background-position: center;
         }}
 
-        /* Chatbox styling */
         .stChatMessage {{
             border-radius: 12px;
             padding: 12px;
@@ -84,28 +79,25 @@ if os.path.exists(bg_path):
 
         .stChatMessage.user {{
             background-color: rgba(0, 123, 255, 0.15);
-            color: #white;
             text-align: right;
         }}
 
         .stChatMessage.assistant {{
             background-color: rgba(40, 40, 40, 0.75);
-            color: #fff;
+            color: white;
             text-align: left;
         }}
 
-        /* Chat input box */
         .stTextInput>div>div>input {{
             border-radius: 20px;
             padding: 10px 15px;
             border: 2px solid #007bff;
-            background-color: rgba(0,0,0,0.6);  /* dark background */
-            color: white;                        /* typed text color */
+            background-color: rgba(0,0,0,0.6);
+            color: white;
         }}
 
-        /* Placeholder color */
         .stTextInput>div>div>input::placeholder {{
-            color: #ddd;                         /* light gray placeholder */
+            color: #ddd;
         }}
         </style>
         """,
@@ -115,16 +107,20 @@ else:
     st.warning("⚠️ Background image not found at assets/bg.jpg")
 
 
-# -------- Environment & Client --------
-load_dotenv()
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+# -------- API Key & Client --------
+try:
+    GROQ_API_KEY = os.environ["GROQ_API_KEY"]
+except KeyError:
+    st.error("❌ GROQ_API_KEY not found. Please add it in Streamlit Secrets.")
+    st.stop()
+
+client = Groq(api_key=GROQ_API_KEY)
 
 
 # -------- Chat History --------
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# Display messages in styled containers
 for role, msg in st.session_state.history:
     if role == "user":
         st.markdown(f'<div class="stChatMessage user">{msg}</div>', unsafe_allow_html=True)
@@ -133,31 +129,31 @@ for role, msg in st.session_state.history:
 
 
 # -------- User Input --------
-prompt = st.chat_input("Ask a service/warranty/maintenance question...")
+prompt = st.chat_input("Ask a service / warranty / maintenance question...")
 
 if prompt:
     st.session_state.history.append(("user", prompt))
-
     st.markdown(f'<div class="stChatMessage user">{prompt}</div>', unsafe_allow_html=True)
 
-    # --- Retrieve knowledge ---
+    # -------- Retrieval --------
     retrieved = retrieve(prompt)
     context = "\n\n".join([r[0] for r in retrieved])
 
     system_prompt = f"""
-    You are a helpful ATV post-sales assistant.
-    Answer using ONLY the information below whenever possible.
-    If the answer is not explicitly in the knowledge, generate a helpful and accurate response using your general understanding and reasoning abilities, 
-    and also provide the support contact for further assistance.
+    You are a helpful ATV post-sales support assistant.
 
-    Call: +91-6382814267
-    Email: me22b2010@iiitdm.ac.in
+    Answer using the knowledge below whenever possible.
+    If the information is not available, provide a helpful response and guide the user to contact support.
 
-    Knowledge:
+    Support Contact:
+    📞 +91-6382814267
+    📧 me22b2010@iiitdm.ac.in
+
+    Knowledge Base:
     {context}
     """
 
-    # --- LLM Call ---
+    # -------- LLM Call --------
     completion = client.chat.completions.create(
         model="openai/gpt-oss-20b",
         messages=[
@@ -170,5 +166,4 @@ if prompt:
     answer = completion.choices[0].message.content
 
     st.session_state.history.append(("assistant", answer))
-
     st.markdown(f'<div class="stChatMessage assistant">{answer}</div>', unsafe_allow_html=True)
